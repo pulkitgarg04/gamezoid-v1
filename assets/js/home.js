@@ -1,6 +1,6 @@
 function accountRoute() {
   const currentUser = sessionStorage.getItem('currentUser');
-  
+
   if (currentUser) {
     window.location.href = './pages/account.html';
   } else {
@@ -34,25 +34,54 @@ function showEmptyStates() {
   if (gamesSection) {
     const container = gamesSection.querySelector('.product-container');
     if (container) {
-      container.innerHTML = `<div class="product-empty">No games available - Visit the admin panel to add games</div>`;
+      container.innerHTML = `<div class="product-empty">No games available</div>`;
     }
   }
 
   if (productsSection) {
     const container = productsSection.querySelector('.product-container');
     if (container) {
-      container.innerHTML = `<div class="product-empty">No products available - Visit the admin panel to add products</div>`;
+      container.innerHTML = `<div class="product-empty">No products available</div>`;
     }
   }
 }
 
-function loadHomeData() {
-  const games = getStore('games');
-  const products = getStore('products');
+function isRootLevel() {
+  const path = window.location.pathname;
+  return path.endsWith('/index.html') || path.endsWith('/') || path === '/';
+}
+
+function fixImagePath(imgPath) {
+  if (!imgPath) return imgPath;
+  if (isRootLevel() && imgPath.startsWith('../assets/')) {
+    return imgPath.replace('../assets/', './assets/');
+  }
+  return imgPath;
+}
+
+async function loadHomeData() {
+  let games = getStore('games');
+  let products = getStore('products');
 
   const sections = Array.from(document.querySelectorAll('section.new-section'));
   const gamesSection = sections.find(sec => sec.querySelector('h2')?.textContent?.toLowerCase().includes('new games'));
   const productsSection = sections.find(sec => sec.querySelector('h2')?.textContent?.toLowerCase().includes('gaming product'));
+
+  if ((!Array.isArray(games) || games.length === 0) && (!Array.isArray(products) || products.length === 0)) {
+    try {
+      const basePath = isRootLevel() ? '.' : '..';
+      const response = await fetch(`${basePath}/assets/data/default-data.json`);
+      if (response.ok) {
+        const defaultData = await response.json();
+        games = defaultData.games || [];
+        products = defaultData.products || [];
+        if (games.length > 0) localStorage.setItem('games', JSON.stringify(games));
+        if (products.length > 0) localStorage.setItem('products', JSON.stringify(products));
+      }
+    } catch (err) {
+      console.warn('Could not load default data:', err);
+    }
+  }
 
   if ((!Array.isArray(games) || games.length === 0) && (!Array.isArray(products) || products.length === 0)) {
     return showEmptyStates();
@@ -65,7 +94,7 @@ function loadHomeData() {
 function renderGamesToSection(section, games) {
   const container = section.querySelector('.product-container');
   if (!container) return;
-  
+
   if (!Array.isArray(games) || games.length === 0) {
     container.innerHTML = `<div class="product-empty">No games available - Visit the admin panel to add games</div>`;
     return;
@@ -73,7 +102,7 @@ function renderGamesToSection(section, games) {
 
   container.innerHTML = games.slice(0, 8).map(game => `
     <div class="product" onclick="window.location.href='./pages/game.html?id=${game.id}'">
-      <img src="${game.image}" onerror="this.src='./assets/media/favicon.png'">
+      <img src="${fixImagePath(game.image)}" onerror="this.src='./assets/media/favicon.png'">
       <div class="product-description">
         <div class="product-category">
           <h6>${game.category || ''}</h6>
@@ -91,15 +120,15 @@ function renderGamesToSection(section, games) {
 function renderProductsToSection(section, products) {
   const container = section.querySelector('.product-container');
   if (!container) return;
-  
+
   if (!Array.isArray(products) || products.length === 0) {
     container.innerHTML = `<div class="product-empty">No products available - Visit the admin panel to add products</div>`;
     return;
   }
-  
+
   container.innerHTML = products.slice(0, 8).map(p => `
     <div class="product" onclick="window.location.href='./pages/product.html?id=${p.id}'">
-      <img src="${p.image}" onerror="this.src='./assets/media/favicon.png'">
+      <img src="${fixImagePath(p.image)}" onerror="this.src='./assets/media/favicon.png'">
       <div class="product-description">
         <div class="product-category">
           <h6>${p.category || ''}</h6>
@@ -117,27 +146,27 @@ function renderProductsToSection(section, products) {
 function homeAddToCart(id, type) {
   const currentUserStr = sessionStorage.getItem('currentUser');
   const currentUser = JSON.parse(currentUserStr || 'null');
-  
+
   if (!currentUser) {
     alert('Please log in to add items to cart');
     window.location.href = './pages/login.html';
     return;
   }
-  
+
   let cart = JSON.parse(localStorage.getItem('cart') || '[]');
-  
+
   if (cart.find(i => String(i.id) === String(id) && i.type === type)) {
     alert('This item is already in your cart!');
     return;
   }
-  
-  cart.push({ 
-    id, 
-    type, 
+
+  cart.push({
+    id,
+    type,
     addedAt: new Date().toISOString(),
     addedBy: currentUser.email
   });
-  
+
   localStorage.setItem('cart', JSON.stringify(cart));
   alert('Item added to cart!');
 }
